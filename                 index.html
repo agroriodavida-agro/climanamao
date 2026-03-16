@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroSystem - Foco Gráfico</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        :root { --primary: #2e7d32; --accent: #66bb6a; --dark: #0a1a0a; --card: #152a15; --text: #e0e0e0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0a1a0a; color: var(--text); margin: 0; padding-bottom: 20px; overflow: hidden; } /* Overflow hidden para a splash */
+        header { padding: 15px; text-align: center; background: rgba(0,0,0,0.4); border-bottom: 2px solid var(--primary); }
+        .container { max-width: 600px; margin: auto; padding: 10px; display: none; } /* Escondido inicialmente */
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        h3 { color: var(--accent); margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        /* Interface de Lançamento */
+        .input-group { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
+        input { background: #000; color: white; border: 1px solid #333; padding: 12px; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
+        button.btn-main { background: linear-gradient(to right, var(--primary), var(--accent)); color: white; font-weight: bold; padding: 14px; border: none; border-radius: 8px; width: 100%; margin-top: 10px; cursor: pointer; }
+        
+        /* Card de Segurança do Último Registro */
+        .last-entry-card { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #ff5252; }
+        .btn-del { background: #ff5252; color: white; border: none; padding: 6px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 12px; }
+        
+        /* Gráficos e Stats */
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-box { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #222; }
+        .stat-box small { font-size: 10px; color: #888; text-transform: uppercase; }
+        .stat-box b { display: block; font-size: 18px; color: var(--accent); }
+        .mes-labels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 10px; font-size: 9px; text-align: center; }
+        .mes-box { background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px; border: 1px solid #222; }
+        footer { text-align: center; font-size: 11px; opacity: 0.5; margin-top: 10px; }
+
+        /* NOVA TELA INICIAL (SPLASH SCREEN) */
+        #splash-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle, #1a3a1a 0%, #0a1a0a 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 9999; color: white; text-align: center;
+            transition: opacity 0.5s ease-out;
+        }
+        #splash-screen img { width: 120px; margin-bottom: 20px; }
+        #splash-screen h1 { font-size: 28px; color: var(--accent); margin: 0; text-transform: uppercase; letter-spacing: 2px; }
+        #splash-screen p { font-size: 14px; opacity: 0.7; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="splash-screen">
+    <img src="https://i.ibb.co/vzB7pX9/Agro-System-Icon.png" alt="Logo AgroSystem">
+    <h1>AGROSYSTEM PRO</h1>
+    <p>Eng. Agrônomo João Divino Barbosa</p>
+    <div style="margin-top: 30px; font-size: 12px; color: #555;">Carregando dados...</div>
+</div>
+
+<header>
+    <h2 style="margin:0; font-size: 18px;">AGROSYSTEM PRO</h2>
+</header>
+
+<div class="container" id="app-container">
+    <div class="card">
+        <h3>Novo Registro</h3>
+        <div class="input-group">
+            <input type="date" id="dataChuva">
+            <input type="number" id="valorChuva" placeholder="Chuva mm">
+        </div>
+        <button class="btn-main" onclick="lancar()">REGISTRAR AGORA</button>
+        
+        <div id="containerUltimo"></div>
+    </div>
+
+    <div class="card">
+        <h3>Evolução Diária (Picos)</h3>
+        <div class="stats-row">
+            <div class="stat-box"><small>Total Mês</small><b id="totalMes">0 mm</b></div>
+            <div class="stat-box"><small>Maior Pico</small><b id="picoMes">0 mm</b></div>
+        </div>
+        <div style="height: 220px;">
+            <canvas id="chartMensalDiario"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Acumulado Mensal</h3>
+        <canvas id="chartAnual"></canvas>
+        <div id="labelsFechamento" class="mes-labels"></div>
+    </div>
+
+    <footer>Desenvolvido por João Divino Barbosa</footer>
+</div>
+
+<script>
+    // Lógica da Tela Inicial (Splash Screen)
+    window.addEventListener('load', () => {
+        setTimeout(() => {
+            document.getElementById('splash-screen').style.opacity = '0';
+            setTimeout(() => {
+                document.getElementById('splash-screen').style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+                document.body.style.overflow = 'auto'; // Reativa o scroll
+                atualizarUI(); // Garante que os gráficos carreguem
+            }, 500); // Tempo da transição de opacidade
+        }, 2500); // Tempo que a splash fica na tela (2.5 segundos)
+    });
+
+    Chart.register(ChartDataLabels);
+    let registros = JSON.parse(localStorage.getItem("chuvas_v9_foco")) || [];
+    let chartAnual, chartMensal;
+    const nomesMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    document.getElementById('dataChuva').valueAsDate = new Date();
+
+    function salvar() {
+        localStorage.setItem("chuvas_v9_foco", JSON.stringify(registros));
+        atualizarUI();
+    }
+
+    function lancar() {
+        const data = document.getElementById("dataChuva").value;
+        const valor = parseFloat(document.getElementById("valorChuva").value);
+        if(!data || isNaN(valor)) return;
+        
+        registros.push({ data, valor, timestamp: Date.now() });
+        registros.sort((a, b) => new Date(a.data) - new Date(b.data));
+        
+        document.getElementById("valorChuva").value = "";
+        salvar();
+    }
+
+    function excluirUltimo() {
+        if(confirm("Apagar o último lançamento realizado?")) {
+            registros.sort((a, b) => a.timestamp - b.timestamp);
+            registros.pop();
+            registros.sort((a, b) => new Date(a.data) - new Date(b.data));
+            salvar();
+        }
+    }
+
+    function atualizarUI() {
+        const agora = new Date();
+        const mesAtual = agora.getMonth();
+        const anoAtual = agora.getFullYear();
+
+        let totaisMeses = new Array(12).fill(0);
+        let labelsDias = [];
+        let chuvasDoMes = [];
+        let maiorPico = 0;
+
+        registros.forEach(r => {
+            const d = new Date(r.data + 'T00:00:00');
+            if(d.getFullYear() === anoAtual) totaisMeses[d.getMonth()] += r.valor;
+        });
+
+        const containerUltimo = document.getElementById("containerUltimo");
+        if(registros.length > 0) {
+            const ultimo = registros.reduce((prev, current) => (prev.timestamp > current.timestamp) ? prev : current);
+            const dataFmt = new Date(ultimo.data + 'T00:00:00').toLocaleDateString('pt-BR');
+            containerUltimo.innerHTML = `
+                <div class="last-entry-card">
+                    <span><b>Último:</b> ${dataFmt} - ${ultimo.valor} mm</span>
+                    <button class="btn-del" onclick="excluirUltimo()">APAGAR</button>
+                </div>`;
+        } else {
+            containerUltimo.innerHTML = "";
+        }
+
+        document.getElementById("labelsFechamento").innerHTML = totaisMeses.map((v, i) => 
+            `<div class="mes-box"><span>${nomesMeses[i]}</span><span class="mes-val">${Math.round(v)}</span></div>`
+        ).join('');
+
+        const ultimoDiaMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
+        for(let dia = 1; dia <= ultimoDiaMes; dia++) {
+            const dataStr = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+            const regsDia = registros.filter(r => r.data === dataStr);
+            const valor = regsDia.reduce((acc, curr) => acc + curr.valor, 0);
+            labelsDias.push(dia);
+            chuvasDoMes.push(valor);
+            if(valor > maiorPico) maiorPico = valor;
+        }
+
+        document.getElementById("totalMes").innerText = totaisMeses[mesAtual].toFixed(1) + " mm";
+        document.getElementById("picoMes").innerText = maiorPico.toFixed(1) + " mm";
+
+        renderizarGraficos(totaisMeses, labelsDias, chuvasDoMes);
+    }
+
+    function renderizarGraficos(dA, lD, dM) {
+        if(chartAnual) chartAnual.destroy();
+        chartAnual = new Chart(document.getElementById('chartAnual').getContext('2d'), {
+            type: 'bar',
+            data: { labels: nomesMeses, datasets: [{ data: dA, backgroundColor: '#66bb6a' }] },
+            options: { plugins: { legend: false, datalabels: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+
+        if(chartMensal) chartMensal.destroy();
+        chartMensal = new Chart(document.getElementById('chartMensalDiario').getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: lD,
+                datasets: [{
+                    data: dM,
+                    borderColor: '#66bb6a',
+                    backgroundColor: 'rgba(102, 187, 106, 0.2)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: '#fff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: false,
+                    datalabels: {
+                        align: 'top',
+                        anchor: 'end',
+                        color: '#fff',
+                        font: { weight: 'bold', size: 10 },
+                        formatter: (val) => val > 0 ? val + 'mm' : ''
+                    }
+                },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: '#222' } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }
+
+    // Registro do Service Worker para funcionar Offline
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js')
+        .then(() => console.log("AgroSystem Pronto para uso Offline"));
+    }
+</script>
+
+</body>
+</html>

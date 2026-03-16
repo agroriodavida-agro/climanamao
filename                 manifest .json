@@ -1,0 +1,16 @@
+{
+  "name": "Pluviometria Pro",
+  "short_name": "AgroRain",
+  "description": "Controle Pluviométrico Profissional - João Divino Barbosa",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#0a1a0a",
+  "theme_color": "#2e7d32",
+  "icons": [
+    {
+      "src": "https://i.ibb.co/vzB7pX9/Agro-System-Icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
