@@ -1,32 +1,23 @@
-const CACHE_NAME = 'agrosystem-v9';
+
+const CACHE_NAME = 'agrosystem-v11';
 const ASSETS = [
-  'index.html', // Verifique se o seu arquivo HTML tem este nome
+  './',
+  'index.html',
   'https://cdn.jsdelivr.net/npm/chart.js',
   'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2'
 ];
 
-// Instalação: Salva os arquivos essenciais no cache do celular
+// Instalação: Salva tudo no celular
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Cache do AgroSystem Pro iniciado');
+      console.log('Arquivos guardados no celular!');
       return cache.addAll(ASSETS);
     })
   );
 });
 
-// Ativação: Limpa caches antigos se você atualizar a versão
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      );
-    })
-  );
-});
-
-// Estratégia de Busca: Tenta o Cache primeiro, se não tiver (e tiver rede), busca na web
+// Estratégia: Tenta o Cache primeiro. Se falhar (sem rede), o cache resolve.
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
