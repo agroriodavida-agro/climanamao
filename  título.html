@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Pluviômetro Pro | Gestão de Chuvas</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2e7d32">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        :root { 
+            --primary: #2e7d32; 
+            --accent: #66bb6a; 
+            --dark: #0a1a0a; 
+            --card: #152a15; 
+            --text: #e0e0e0; 
+        }
+        
+        body { 
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif; 
+            background: #0a1a0a; 
+            color: var(--text); 
+            margin: 0; 
+            padding-bottom: 20px; 
+        }
+        
+        header { 
+            padding: 18px 16px; 
+            text-align: center; 
+            background: rgba(0,0,0,0.8); 
+            border-bottom: 3px solid var(--primary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+        header h2 { margin: 0; font-size: 18px; letter-spacing: 1.5px; color: #fff; text-transform: uppercase; }
+
+        .container { max-width: 700px; margin: 0 auto; padding: 12px; }
+        
+        .card { 
+            background: var(--card); 
+            padding: 18px 16px; 
+            border-radius: 20px; 
+            margin-bottom: 18px; 
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        h3 { color: var(--accent); margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .nome-fazenda-group { display: flex; gap: 10px; margin-bottom: 16px; }
+        .nome-fazenda-group div { flex: 1; background: #0c1a0c; padding: 8px 12px; border-radius: 12px; }
+        .nome-fazenda-group label { font-size: 10px; font-weight: bold; color: var(--accent); display: block; margin-bottom: 4px; }
+        .nome-fazenda-group input { background: transparent; border: none; border-bottom: 1px solid #3a5a3a; color: white; width: 100%; padding: 4px 0; font-size: 14px; }
+
+        .farm-selector { display: flex; gap: 8px; margin-bottom: 20px; }
+        .farm-btn { flex: 1; background: #1f3a1f; border: none; padding: 12px; border-radius: 40px; color: #aaa; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.3s; }
+        .farm-btn.active { background: var(--primary); color: white; box-shadow: 0 0 12px rgba(102, 187, 106, 0.4); }
+        
+        .input-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        input[type="date"], input[type="number"] { background: #0c1a0c; color: white; border: 1px solid #2a4b2a; padding: 14px; border-radius: 14px; font-size: 16px; width: 100%; }
+        
+        button.btn-main { background: linear-gradient(95deg, var(--primary), #3c9e40); color: white; font-weight: bold; padding: 16px; border: none; border-radius: 40px; width: 100%; cursor: pointer; font-size: 16px; margin-bottom: 12px; }
+        
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+        .stat-box { background: rgba(0,0,0,0.4); padding: 14px; border-radius: 16px; text-align: center; border: 1px solid #2a4b2a; }
+        .stat-box small { font-size: 10px; color: #aaccaa; text-transform: uppercase; }
+        .stat-box b { display: block; font-size: 22px; color: var(--accent); margin-top: 5px; }
+        
+        .btn-group { display: flex; gap: 8px; }
+        .btn-group button { flex: 1; padding: 12px; border: none; border-radius: 12px; color: white; font-size: 11px; font-weight: bold; cursor: pointer; opacity: 0.9; }
+        
+        #splash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a1a0a; display: flex; justify-content: center; align-items: center; z-index: 9999; color: white; }
+        canvas { max-height: 240px; width: 100%; margin-top: 10px; }
+        
+        footer { text-align: center; font-size: 10px; opacity: 0.4; margin-top: 20px; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div id="splash"><h2>🌧️ PLUVIÔMETRO</h2></div>
+
+<header><h2>🌦️ MONITORAMENTO AGRÍCOLA</h2></header>
+
+<div class="container">
+    <div class="card">
+        <div class="nome-fazenda-group">
+            <div><label>NOME DA UNIDADE 1</label><input type="text" id="nomeFazenda1"></div>
+            <div><label>NOME DA UNIDADE 2</label><input type="text" id="nomeFazenda2"></div>
+        </div>
+
+        <div class="farm-selector">
+            <button class="farm-btn active" id="btnFarm1" onclick="mudarFazenda('fazenda1')">Fazenda 1</button>
+            <button class="farm-btn" id="btnFarm2" onclick="mudarFazenda('fazenda2')">Fazenda 2</button>
+        </div>
+
+        <div class="input-group">
+            <input type="date" id="dataChuva">
+            <input type="number" id="valorChuva" placeholder="Chuva em mm" step="0.1">
+        </div>
+        <button class="btn-main" onclick="lancar()">SALVAR REGISTRO</button>
+        
+        <div class="btn-group">
+            <button style="background: #1e5a8a;" onclick="exportarDados()">📥 EXPORTAR</button>
+            <button style="background: #2e6b2e;" onclick="document.getElementById('fileIn').click()">📤 IMPORTAR</button>
+            <button style="background: #9e3a2c;" onclick="limparTudo()">🗑️ LIMPAR</button>
+        </div>
+        <input type="file" id="fileIn" style="display:none" onchange="importarDados(this.files[0])">
+    </div>
+
+    <div class="card">
+        <h3>📈 <span id="labelDiario">Evolução</span> (Mês Atual)</h3>
+        <div class="stats-row">
+            <div class="stat-box"><small>Total Acumulado</small><b id="totalMes">0 mm</b></div>
+            <div class="stat-box"><small>Maior Evento</small><b id="picoMes">0 mm</b></div>
+        </div>
+        <canvas id="chartDiario"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>📅 Acumulado por Mês</h3>
+        <canvas id="chartMensal"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>📊 Comparativo entre Áreas</h3>
+        <select id="anoSelect" onchange="atualizarUI()" style="width: 100%; background: #0c1a0c; color: white; padding: 10px; border: 1px solid #2a4b2a; border-radius: 12px; margin-bottom: 15px;"></select>
+        <canvas id="chartComp"></canvas>
+    </div>
+
+    <footer>João Divino Barbosa © 2026</footer>
+</div>
+
+<script>
+    Chart.register(ChartDataLabels);
+    let currentFarm = 'fazenda1';
+    let charts = {};
+
+    window.onload = () => {
+        document.getElementById('dataChuva').valueAsDate = new Date();
+        carregarNomes();
+        povoarAnos();
+        atualizarUI();
+        
+        ['nomeFazenda1', 'nomeFazenda2'].forEach(id => {
+            document.getElementById(id).addEventListener('change', salvarNomes);
+        });
+
+        setTimeout(() => document.getElementById('splash').style.display = 'none', 700);
+    };
+
+    function carregarNomes() {
+        const nomes = JSON.parse(localStorage.getItem('pluv_nomes')) || { fazenda1: 'Fazenda 1', fazenda2: 'Fazenda 2' };
+        document.getElementById('nomeFazenda1').value = nomes.fazenda1;
+        document.getElementById('nomeFazenda2').value = nomes.fazenda2;
+    }
+
+    function salvarNomes() {
+        const n = {
+            fazenda1: document.getElementById('nomeFazenda1').value || 'Fazenda 1',
+            fazenda2: document.getElementById('nomeFazenda2').value || 'Fazenda 2'
+        };
+        localStorage.setItem('pluv_nomes', JSON.stringify(n));
+        atualizarUI();
+    }
+
+    function mudarFazenda(f) {
+        currentFarm = f;
+        document.getElementById('btnFarm1').classList.toggle('active', f === 'fazenda1');
+        document.getElementById('btnFarm2').classList.toggle('active', f === 'fazenda2');
+        atualizarUI();
+    }
+
+    function lancar() {
+        const dataInput = document.getElementById('dataChuva').value;
+        const valor = parseFloat(document.getElementById('valorChuva').value);
+        if(!dataInput || isNaN(valor)) return alert("Preencha corretamente.");
+
+        let dados = JSON.parse(localStorage.getItem('pluv_dados_' + currentFarm) || '[]');
+        
+        // Correção Técnica: Impede duplicidade de data
+        if(dados.find(item => item.data === dataInput)) return alert("Data já lançada!");
+
+        dados.push({ data: dataInput, valor: valor });
+        localStorage.setItem('pluv_dados_' + currentFarm, JSON.stringify(dados));
+        document.getElementById('valorChuva').value = '';
+        atualizarUI();
+    }
+
+    function atualizarUI() {
+        const nomes = JSON.parse(localStorage.getItem('pluv_nomes')) || { fazenda1: 'Fazenda 1', fazenda2: 'Fazenda 2' };
+        const dadosF1 = JSON.parse(localStorage.getItem('pluv_dados_fazenda1') || '[]');
+        const dadosF2 = JSON.parse(localStorage.getItem('pluv_dados_fazenda2') || '[]');
+        const anoSel = parseInt(document.getElementById('anoSelect').value) || 2026;
+        
+        const hoje = new Date();
+        const mAtual = hoje.getMonth();
+        const aAtual = hoje.getFullYear();
+
+        // Diário
+        const diasNoMes = new Date(aAtual, mAtual + 1, 0).getDate();
+        const labelsDias = Array.from({length: diasNoMes}, (_, i) => i + 1);
+        const valoresDias = Array(diasNoMes).fill(0);
+        const dadosAtuais = currentFarm === 'fazenda1' ? dadosF1 : dadosF2;
+
+        let totalM = 0, picoM = 0;
+        dadosAtuais.forEach(d => {
+            const p = d.data.split('-');
+            if(parseInt(p[0]) === aAtual && (parseInt(p[1])-1) === mAtual) {
+                valoresDias[parseInt(p[2])-1] += d.valor;
+                totalM += d.valor;
+                if(d.valor > picoM) picoM = d.valor;
+            }
+        });
+
+        document.getElementById('totalMes').innerText = totalM.toFixed(1) + " mm";
+        document.getElementById('picoMes').innerText = picoM.toFixed(1) + " mm";
+        renderChart('chartDiario', 'bar', labelsDias, [{label: 'mm', data: valoresDias, backgroundColor: '#66bb6a'}]);
+
+        // Mensal e Comparativo
+        const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        const pAnual = (lista) => {
+            const m = Array(12).fill(0);
+            let totalAno = 0;
+            lista.forEach(d => {
+                const p = d.data.split('-');
+                if(parseInt(p[0]) === anoSel) {
+                    m[parseInt(p[1])-1] += d.valor;
+                    totalAno += d.valor;
+                }
+            });
+            return { m, totalAno };
+        };
+        const resF1 = pAnual(dadosF1); 
+        const resF2 = pAnual(dadosF2);
+
+        renderChart('chartMensal', 'bar', meses, [{label: 'Total mm', data: currentFarm === 'fazenda1' ? resF1.m : resF2.m, backgroundColor: '#2e7d32'}]);
+        
+        // Correção Técnica: Legenda com o Total exato conforme seu print
+        renderChart('chartComp', 'line', meses, [
+            {label: `${nomes.fazenda1}: ${resF1.totalAno.toFixed(0)}`, data: resF1.m, borderColor: '#66bb6a', backgroundColor: '#66bb6a33', tension: 0.3, fill: true},
+            {label: `${nomes.fazenda2}: ${resF2.totalAno.toFixed(0)}`, data: resF2.m, borderColor: '#b3e4ff', backgroundColor: '#b3e4ff33', tension: 0.3, fill: true}
+        ]);
+    }
+
+    function renderChart(id, type, labels, datasets) {
+        if (charts[id]) charts[id].destroy();
+        charts[id] = new Chart(document.getElementById(id).getContext('2d'), {
+            type: type,
+            data: { labels, datasets },
+            options: { 
+                responsive: true, maintainAspectRatio: false,
+                layout: { padding: { top: 25 } }, // Respiro para os números no topo
+                plugins: { 
+                    legend: { display: id === 'chartComp', labels: { color: '#fff', font: { weight: 'bold' } } },
+                    // Ativação definitiva dos números em cima das barras
+                    datalabels: { 
+                        anchor: 'end', 
+                        align: 'top', 
+                        color: '#fff', 
+                        font: { weight: 'bold', size: 10 }, 
+                        formatter: v => v > 0 ? v.toFixed(0) : '',
+                        clip: false 
+                    }
+                },
+                scales: { 
+                    y: { grace: '10%', ticks: { color: '#888' }, grid: { color: '#1a331a' } }, 
+                    x: { ticks: { color: '#888' }, grid: { display: false } } 
+                }
+            }
+        });
+    }
+
+    function povoarAnos() {
+        const s = document.getElementById('anoSelect');
+        s.innerHTML = '';
+        for(let i = 2026; i >= 2024; i--) {
+            const o = document.createElement('option');
+            o.value = i; o.text = "Dados de " + i; s.appendChild(o);
+        }
+    }
+
+    function exportarDados() {
+        const d = { f1: localStorage.getItem('pluv_dados_fazenda1'), f2: localStorage.getItem('pluv_dados_fazenda2'), n: localStorage.getItem('pluv_nomes') };
+        const b = new Blob([JSON.stringify(d)], {type: 'application/json'});
+        const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `chuvas_backup.json`; a.click();
+    }
+
+    function importarDados(f) {
+        const r = new FileReader();
+        r.onload = (e) => {
+            const d = JSON.parse(e.target.result);
+            if(d.f1) localStorage.setItem('pluv_dados_fazenda1', d.f1);
+            if(d.f2) localStorage.setItem('pluv_dados_fazenda2', d.f2);
+            if(d.n) localStorage.setItem('pluv_nomes', d.n);
+            location.reload();
+        };
+        r.readAsText(f);
+    }
+
+    function limparTudo() {
+        if(confirm("Apagar todos os registros?")) { localStorage.clear(); location.reload(); }
+    }
+</script>
+</body>
+</html>
