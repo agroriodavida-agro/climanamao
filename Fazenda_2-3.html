@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Pluviômetro Pro | Gestão de Chuvas</title>
+    <meta name="theme-color" content="#2e7d32">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; }
+        :root { --primary: #2e7d32; --accent: #66bb6a; --dark: #0a1a0a; --card: #152a15; --text: #e0e0e0; }
+        body { font-family: 'Segoe UI', Roboto, system-ui, sans-serif; background: #0a1a0a; color: var(--text); margin: 0; padding-bottom: 20px; }
+        header { padding: 18px 16px; text-align: center; background: rgba(0,0,0,0.8); border-bottom: 3px solid var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+        header h2 { margin: 0; font-size: 18px; letter-spacing: 1.5px; color: #fff; text-transform: uppercase; }
+        header small { display: block; font-size: 10px; color: #444; margin-top: 4px; letter-spacing: 0.5px; }
+        .container { max-width: 700px; margin: 0 auto; padding: 12px; }
+        .card { background: var(--card); padding: 18px 16px; border-radius: 20px; margin-bottom: 18px; border: 1px solid rgba(255,255,255,0.1); }
+        h3 { color: var(--accent); margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        .nome-fazenda-group { display: flex; gap: 10px; margin-bottom: 16px; }
+        .nome-fazenda-group div { flex: 1; background: #0c1a0c; padding: 8px 12px; border-radius: 12px; }
+        .nome-fazenda-group label { font-size: 10px; font-weight: bold; color: var(--accent); display: block; margin-bottom: 4px; }
+        .nome-fazenda-group input { background: transparent; border: none; border-bottom: 1px solid #3a5a3a; color: white; width: 100%; padding: 4px 0; font-size: 14px; }
+        .farm-selector { display: flex; gap: 8px; margin-bottom: 20px; }
+        .farm-btn { flex: 1; background: #1f3a1f; border: none; padding: 12px; border-radius: 40px; color: #aaa; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.3s; }
+        .farm-btn.active { background: var(--primary); color: white; box-shadow: 0 0 12px rgba(102,187,106,0.4); }
+        .input-group { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+        input[type="date"], input[type="number"] { background: #0c1a0c; color: white; border: 1px solid #2a4b2a; padding: 14px; border-radius: 14px; font-size: 16px; width: 100%; }
+        button.btn-main { background: linear-gradient(95deg, var(--primary), #3c9e40); color: white; font-weight: bold; padding: 16px; border: none; border-radius: 40px; width: 100%; cursor: pointer; font-size: 16px; margin-bottom: 12px; }
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+        .stat-box { background: rgba(0,0,0,0.4); padding: 14px; border-radius: 16px; text-align: center; border: 1px solid #2a4b2a; }
+        .stat-box small { font-size: 10px; color: #aaccaa; text-transform: uppercase; }
+        .stat-box b { display: block; font-size: 22px; color: var(--accent); margin-top: 5px; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-group button { flex: 1; min-width: 70px; padding: 12px; border: none; border-radius: 12px; color: white; font-size: 11px; font-weight: bold; cursor: pointer; }
+        #splash { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #0a1a0a; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 9999; color: white; }
+        canvas { max-height: 240px; width: 100%; margin-top: 10px; }
+        footer { text-align: center; font-size: 10px; opacity: 0.4; margin-top: 20px; padding-bottom: 10px; }
+
+        /* ALERTA DATA DUPLICADA */
+        .alerta-duplicado { display:none; align-items:center; gap:10px; background:linear-gradient(135deg,#4a1a00,#2a0f00); border:1px solid #ff6d00; border-radius:14px; padding:12px 14px; margin-top:10px; animation:slideIn 0.3s ease; }
+        .alerta-duplicado.show { display:flex; }
+        .alerta-icon { font-size:22px; flex-shrink:0; }
+        .alerta-texto { flex:1; }
+        .alerta-titulo { font-size:12px; font-weight:bold; color:#ff9800; text-transform:uppercase; letter-spacing:0.5px; }
+        .alerta-desc { font-size:12px; color:#ccc; margin-top:2px; }
+        .alerta-valor { font-size:13px; color:#ff9800; font-weight:bold; margin-top:3px; }
+        .btn-substituir { background:#ff6d00; border:none; color:white; padding:8px 12px; border-radius:8px; font-size:11px; font-weight:bold; cursor:pointer; white-space:nowrap; flex-shrink:0; }
+        .btn-substituir:hover { background:#e65100; }
+        @keyframes slideIn { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+    </style>
+</head>
+<body>
+
+<div id="splash">
+    <h2>🌧️ PLUVIÔMETRO</h2>
+    <p style="color:var(--accent);font-size:12px;margin:6px 0 20px;">Carregando...</p>
+    <p style="color:#333;font-size:10px;margin:0;">Desenvolvido por Joao Divino Barbosa &#174; 2026</p>
+</div>
+
+<!-- PAINEL DE MIGRAÇÃO SUPABASE -->
+<div id="painelMigracao" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:8000;overflow-y:auto;padding:20px;">
+    <div style="max-width:600px;margin:0 auto;padding-top:20px;">
+        <div style="background:#152a15;border:1px solid #ff9800;border-radius:20px;padding:24px;">
+            <h2 style="color:#ff9800;margin:0 0 6px;font-size:18px;">📦 Migração Supabase → Google</h2>
+            <p style="color:#aaa;font-size:12px;margin:0 0 20px;">Encontrei dados no Supabase. Veja abaixo, mapeie as colunas e confirme.</p>
+
+            <div id="migStatus" style="background:#0c1a0c;border-radius:12px;padding:14px;margin-bottom:16px;font-size:13px;color:#ccc;min-height:50px;">
+                🔍 Conectando ao Supabase...
+            </div>
+
+            <div id="migPreview" style="display:none;">
+                <div style="background:#0c1a0c;border-radius:12px;padding:10px;margin-bottom:12px;overflow-x:auto;max-height:220px;overflow-y:auto;">
+                    <table id="migTabela" style="width:100%;border-collapse:collapse;font-size:11px;color:#ddd;"></table>
+                </div>
+                <p id="migContagem" style="color:#66bb6a;font-size:13px;font-weight:bold;margin:0 0 14px;"></p>
+
+                <p style="color:#ff9800;font-size:12px;font-weight:bold;margin:0 0 10px;">🗂️ Mapeie as colunas:</p>
+                <div style="display:grid;gap:10px;margin-bottom:18px;" id="mapColunas"></div>
+
+                <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                    <button onclick="executarMigracao()" style="flex:1;min-width:160px;background:linear-gradient(95deg,#2e7d32,#3c9e40);color:white;border:none;padding:14px;border-radius:40px;font-weight:bold;font-size:14px;cursor:pointer;">✅ MIGRAR TUDO</button>
+                    <button onclick="pularMigracao()" style="background:#222;color:#888;border:none;padding:14px 18px;border-radius:40px;font-size:12px;cursor:pointer;">Pular</button>
+                </div>
+            </div>
+
+            <div id="migVazio" style="display:none;text-align:center;padding:10px 0;">
+                <p style="color:#888;font-size:13px;">Nenhum dado encontrado no Supabase.</p>
+                <button onclick="pularMigracao()" style="background:#222;color:#888;border:none;padding:12px 24px;border-radius:40px;font-size:13px;cursor:pointer;margin-top:8px;">Continuar</button>
+            </div>
+
+            <div id="migProgresso" style="display:none;">
+                <div style="background:#0c1a0c;border-radius:8px;overflow:hidden;margin-bottom:12px;">
+                    <div id="migBarra" style="height:8px;background:linear-gradient(90deg,#2e7d32,#66bb6a);width:0%;transition:width 0.4s;"></div>
+                </div>
+                <p id="migProgressoTexto" style="color:#66bb6a;font-size:13px;text-align:center;margin:0;"></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<header>
+    <h2>🌦️ MONITORAMENTO AGRÍCOLA</h2>
+    <small>Desenvolvido por Joao Divino Barbosa &#174; 2026</small>
+</header>
+
+<div class="container">
+    <div class="card">
+        <div class="nome-fazenda-group">
+            <div><label>UNIDADE 1</label><input type="text" id="nomeFazenda1" value="Rio da Vida"></div>
+            <div><label>UNIDADE 2</label><input type="text" id="nomeFazenda2" value="Bacabal"></div>
+        </div>
+        <div class="farm-selector">
+            <button class="farm-btn active" id="btnFarm1" onclick="mudarFazenda('fazenda1')">Fazenda 1</button>
+            <button class="farm-btn" id="btnFarm2" onclick="mudarFazenda('fazenda2')">Fazenda 2</button>
+        </div>
+        <div class="input-group">
+            <input type="date" id="dataChuva">
+            <input type="number" id="valorChuva" placeholder="Chuva em mm" step="0.1">
+        </div>
+        <button class="btn-main" id="btnLancar" onclick="lancar()">SALVAR NO GOOGLE</button>
+
+        <!-- ALERTA DATA DUPLICADA -->
+        <div class="alerta-duplicado" id="alertaDuplicado">
+            <div class="alerta-icon">⚠️</div>
+            <div class="alerta-texto">
+                <div class="alerta-titulo">Dados já coletados nessa data!</div>
+                <div class="alerta-desc" id="alertaDescData"></div>
+                <div class="alerta-valor" id="alertaValorExistente"></div>
+            </div>
+            <button class="btn-substituir" onclick="substituir()">Substituir</button>
+        </div>
+
+        <div class="btn-group">
+            <button style="background:#9c27b0" onclick="exportarPDF()">📄 PDF</button>
+            <button style="background:#1e5a8a" onclick="exportarDados()">📥 EXPORTAR</button>
+            <button style="background:#9e3a2c" onclick="limparTudo()">🗑️ LIMPAR</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>📈 <span id="labelDiario">Evolução</span> (Mês Atual)</h3>
+        <div class="stats-row">
+            <div class="stat-box"><small>Total Acumulado</small><b id="totalMes">0 mm</b></div>
+            <div class="stat-box"><small>Maior Evento</small><b id="picoMes">0 mm</b></div>
+        </div>
+        <canvas id="chartDiario"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>📅 Acumulado por Mês</h3>
+        <canvas id="chartMensal"></canvas>
+    </div>
+
+    <div class="card">
+        <h3>📊 Comparativo entre Áreas</h3>
+        <select id="anoSelect" onchange="atualizarUI()" style="width:100%;background:#0c1a0c;color:white;padding:10px;border:1px solid #2a4b2a;border-radius:12px;margin-bottom:15px;"></select>
+        <canvas id="chartComp"></canvas>
+    </div>
+
+    <footer>Joao Divino Barbosa &#174; 2026</footer>
+</div>
+
+<script type="module">
+// ── FIREBASE ──────────────────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc,
+         query, orderBy, where, setDoc, getDoc }
+    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDHmAxPRs-fwn8K-QBoOYAi2auZJlVN4H4",
+    authDomain: "fazenda-sitio-novo.firebaseapp.com",
+    projectId: "fazenda-sitio-novo",
+    storageBucket: "fazenda-sitio-novo.firebasestorage.app",
+    messagingSenderId: "91070055656",
+    appId: "1:91070055656:web:d797c9d477897922d1755d"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db    = getFirestore(fbApp);
+
+// Coleções Firebase
+const COL_F1    = "chuvas_unidade1";
+const COL_F2    = "chuvas_unidade2";
+const DOC_NOMES = "config/nomes_fazendas"; // documento único compartilhado
+
+// ── ESTADO ────────────────────────────────────────────────────
+Chart.register(ChartDataLabels);
+let currentFarm = 'fazenda1';
+let charts      = {};
+let dadosF1     = [];   // cache em memória – carregado do Firebase
+let dadosF2     = [];
+const mesesAbr  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+// ── SUPABASE CONFIG (só para migração) ───────────────────────
+const SUPABASE_URL = 'https://dbfdpeajicwwqgaimwwk.supabase.co';
+const SUPABASE_KEY = 'EyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRiZmRwZWFqaWN3d3FnYWltd3drIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MDEyMjAsImV4cCI6MjA5MDQ3NzIyMH0.EBdFDl5YoS2iA5BPuKg-myICuplCVZa1CbEiJOAT1nM';
+
+// ── INIT ──────────────────────────────────────────────────────
+window.onload = async () => {
+    document.getElementById('dataChuva').valueAsDate = new Date();
+    povoarAnos();
+    await carregarNomesFirebase();
+    await carregarTodosDados();
+    atualizarUI();
+    setTimeout(() => document.getElementById('splash').style.display = 'none', 800);
+
+    // Verifica se migração já foi feita
+    if (!localStorage.getItem('migrado_firebase_v2')) {
+        await iniciarPainelMigracao();
+    }
+};
+
+// ── BACKUP EMBUTIDO (dados exportados em 2026-04-05) ─────────
+const BACKUP_F1    = [{"data": "2026-01-18", "valor": 18}, {"data": "2026-01-20", "valor": 30}, {"data": "2026-01-21", "valor": 18}, {"data": "2026-01-24", "valor": 45}, {"data": "2026-01-27", "valor": 37}, {"data": "2026-01-28", "valor": 10}, {"data": "2026-02-04", "valor": 5}, {"data": "2026-02-05", "valor": 16}, {"data": "2026-02-06", "valor": 60}, {"data": "2026-02-08", "valor": 20}, {"data": "2026-02-09", "valor": 20}, {"data": "2026-02-12", "valor": 5}, {"data": "2026-02-13", "valor": 40}, {"data": "2026-02-15", "valor": 18}, {"data": "2026-02-16", "valor": 10}, {"data": "2026-02-17", "valor": 10}, {"data": "2026-02-18", "valor": 23}, {"data": "2026-02-19", "valor": 10}, {"data": "2026-02-20", "valor": 2}, {"data": "2026-02-23", "valor": 5}, {"data": "2026-02-24", "valor": 22}, {"data": "2026-02-25", "valor": 2}, {"data": "2026-02-26", "valor": 5}, {"data": "2026-02-28", "valor": 51}, {"data": "2026-03-03", "valor": 20}, {"data": "2026-03-05", "valor": 5}, {"data": "2026-03-06", "valor": 21}, {"data": "2026-03-10", "valor": 5}, {"data": "2026-03-11", "valor": 12}, {"data": "2026-03-12", "valor": 5}, {"data": "2026-03-13", "valor": 5}, {"data": "2026-03-15", "valor": 22}, {"data": "2026-03-16", "valor": 35}, {"data": "2026-03-19", "valor": 5}, {"data": "2026-03-21", "valor": 52}, {"data": "2026-03-26", "valor": 9}, {"data": "2026-03-29", "valor": 5}, {"data": "2026-03-30", "valor": 3}, {"data": "2026-04-02", "valor": 32}, {"data": "2026-04-03", "valor": 8}, {"data": "2026-04-05", "valor": 13}];
+const BACKUP_F2    = [{"data": "2026-01-20", "valor": 60}, {"data": "2026-01-21", "valor": 39}, {"data": "2026-01-22", "valor": 5}, {"data": "2026-01-24", "valor": 50}, {"data": "2026-01-25", "valor": 10}, {"data": "2026-01-27", "valor": 33}, {"data": "2026-02-05", "valor": 1}, {"data": "2026-02-06", "valor": 110}, {"data": "2026-02-08", "valor": 5}, {"data": "2026-02-09", "valor": 30}, {"data": "2026-02-13", "valor": 20}, {"data": "2026-02-15", "valor": 10}, {"data": "2026-02-16", "valor": 15}, {"data": "2026-02-17", "valor": 8}, {"data": "2026-02-18", "valor": 5}, {"data": "2026-02-19", "valor": 10}, {"data": "2026-02-20", "valor": 19}, {"data": "2026-02-28", "valor": 15}, {"data": "2026-03-01", "valor": 45}, {"data": "2026-03-03", "valor": 19}, {"data": "2026-03-05", "valor": 12}, {"data": "2026-03-06", "valor": 25}, {"data": "2026-03-10", "valor": 30}, {"data": "2026-03-11", "valor": 20}, {"data": "2026-03-13", "valor": 20}, {"data": "2026-03-16", "valor": 50}, {"data": "2026-03-18", "valor": 15}, {"data": "2026-03-19", "valor": 19}, {"data": "2026-03-21", "valor": 50}, {"data": "2026-03-26", "valor": 15}, {"data": "2026-03-30", "valor": 19}, {"data": "2026-04-02", "valor": 55}, {"data": "2026-04-03", "valor": 20}];
+const BACKUP_NOMES = {"fazenda1": "Fazenda Rio da vida ", "fazenda2": "Fazenda Bacabal "};
+
+// ── MIGRAÇÃO SUPABASE → FIREBASE ─────────────────────────────
+// Tabela: chuvas | Colunas: data (date), valor (numeric)
+// Como não há coluna de unidade, todos os dados vão para fazenda1
+async function iniciarPainelMigracao() {
+    document.getElementById('painelMigracao').style.display = 'block';
+    const status = document.getElementById('migStatus');
+
+    const totalF1 = BACKUP_F1.length;
+    const totalF2 = BACKUP_F2.length;
+    const total   = totalF1 + totalF2;
+
+    status.innerHTML = `✅ Backup encontrado com <b style="color:#fff">${total}</b> registros.`;
+
+    // Preview: 3 de cada fazenda
+    const preview = [...BACKUP_F1.slice(0,3), ...BACKUP_F2.slice(0,3)];
+    const linhas  = preview.map((r, i) => {
+        const unidade = i < 3 ? BACKUP_NOMES.fazenda1 : BACKUP_NOMES.fazenda2;
+        return `<tr>
+            <td style="padding:5px 10px;border-bottom:1px solid #1a2a1a;">${r.data}</td>
+            <td style="padding:5px 10px;border-bottom:1px solid #1a2a1a;">${parseFloat(r.valor).toFixed(1)} mm</td>
+            <td style="padding:5px 10px;border-bottom:1px solid #1a2a1a;color:#88cc88;">${unidade}</td>
+        </tr>`;
+    }).join('');
+
+    document.getElementById('migTabela').innerHTML = `
+        <thead><tr>
+            <th style="text-align:left;padding:6px 10px;color:#66bb6a;border-bottom:1px solid #2a4b2a;">Data</th>
+            <th style="text-align:left;padding:6px 10px;color:#66bb6a;border-bottom:1px solid #2a4b2a;">Valor</th>
+            <th style="text-align:left;padding:6px 10px;color:#66bb6a;border-bottom:1px solid #2a4b2a;">Unidade</th>
+        </tr></thead>
+        <tbody>${linhas}</tbody>`;
+
+    document.getElementById('migContagem').textContent =
+        `${totalF1} registros em "${BACKUP_NOMES.fazenda1}" + ${totalF2} em "${BACKUP_NOMES.fazenda2}"`;
+
+    document.getElementById('mapColunas').innerHTML =
+        `<p style="color:#aaa;font-size:12px;margin:0;">Os registros serão importados para as respectivas unidades no Firebase.</p>`;
+
+    document.getElementById('migPreview').style.display = 'block';
+    window._migPronto = true;
+}
+
+// ── MIGRAÇÃO: EXECUTAR ────────────────────────────────────────
+window.executarMigracao = async function() {
+    document.getElementById('migPreview').style.display   = 'none';
+    document.getElementById('migProgresso').style.display = 'block';
+
+    let ok = 0, erros = 0;
+    const lotes = [
+        { lista: BACKUP_F1, col: COL_F1, cache: dadosF1, nomeFaz: BACKUP_NOMES.fazenda1 },
+        { lista: BACKUP_F2, col: COL_F2, cache: dadosF2, nomeFaz: BACKUP_NOMES.fazenda2 }
+    ];
+    const total = BACKUP_F1.length + BACKUP_F2.length;
+    let i = 0;
+
+    for (const lote of lotes) {
+        for (const reg of lote.lista) {
+            i++;
+            const data  = String(reg.data).substring(0, 10);
+            const valor = parseFloat(reg.valor);
+            if (!data || isNaN(valor)) { erros++; continue; }
+
+            // Evita duplicata
+            if (lote.cache.some(d => d.data === data)) { erros++; continue; }
+
+            try {
+                const novoDoc = await addDoc(collection(db, lote.col), {
+                    data, valor, fazenda: lote.nomeFaz,
+                    criadoEm: new Date().toISOString(), origem: 'backup'
+                });
+                lote.cache.push({ id: novoDoc.id, data, valor });
+                ok++;
+            } catch (e) { erros++; }
+
+            const pct = Math.round((i / total) * 100);
+            document.getElementById('migBarra').style.width          = pct + '%';
+            document.getElementById('migProgressoTexto').textContent = `Importando ${i} de ${total}... (${pct}%)`;
+        }
+    }
+
+    // Salva nomes das fazendas no Firebase também
+    try {
+        await setDoc(doc(db, "config", "nomes_fazendas"), BACKUP_NOMES);
+        document.getElementById('nomeFazenda1').value = BACKUP_NOMES.fazenda1;
+        document.getElementById('nomeFazenda2').value = BACKUP_NOMES.fazenda2;
+    } catch(e) {}
+
+    localStorage.setItem('migrado_firebase_v2', 'true');
+    document.getElementById('migProgressoTexto').innerHTML =
+        `✅ Concluído! <b style="color:#fff">${ok}</b> registros importados${erros ? ` · ${erros} ignorados` : ''}.`;
+    document.getElementById('migBarra').style.width = '100%';
+
+    atualizarUI();
+    setTimeout(() => {
+        document.getElementById('painelMigracao').style.display = 'none';
+    }, 2500);
+};
+
+window.pularMigracao = function() {
+    localStorage.setItem('migrado_firebase_v2', 'true');
+    document.getElementById('painelMigracao').style.display = 'none';
+};
+
+// ── NOMES DAS FAZENDAS (compartilhado no Firebase) ───────────
+async function carregarNomesFirebase() {
+    try {
+        const snap = await getDoc(doc(db, "config", "nomes_fazendas"));
+        if (snap.exists()) {
+            const n = snap.data();
+            document.getElementById('nomeFazenda1').value = n.fazenda1 || 'Rio da Vida';
+            document.getElementById('nomeFazenda2').value = n.fazenda2 || 'Bacabal';
+            atualizarLabelsBotoes(n);
+        }
+    } catch (e) { console.warn("Sem nomes no Firebase, usando padrão."); }
+}
+
+function getNomes() {
+    return {
+        fazenda1: document.getElementById('nomeFazenda1').value.trim() || 'Rio da Vida',
+        fazenda2: document.getElementById('nomeFazenda2').value.trim() || 'Bacabal'
+    };
+}
+
+function atualizarLabelsBotoes(n) {
+    document.getElementById('btnFarm1').textContent = n.fazenda1 || 'Fazenda 1';
+    document.getElementById('btnFarm2').textContent = n.fazenda2 || 'Fazenda 2';
+}
+
+// Salva nomes ao sair do campo (compartilhado para todos)
+document.getElementById('nomeFazenda1').addEventListener('blur', salvarNomesFirebase);
+document.getElementById('nomeFazenda2').addEventListener('blur', salvarNomesFirebase);
+
+async function salvarNomesFirebase() {
+    const n = getNomes();
+    atualizarLabelsBotoes(n);
+    try {
+        await setDoc(doc(db, "config", "nomes_fazendas"), n);
+    } catch (e) { console.warn("Erro ao salvar nomes:", e); }
+}
+
+// ── CARREGAR DADOS DO FIREBASE ────────────────────────────────
+async function carregarTodosDados() {
+    try {
+        const [snapF1, snapF2] = await Promise.all([
+            getDocs(query(collection(db, COL_F1), orderBy('data', 'asc'))),
+            getDocs(query(collection(db, COL_F2), orderBy('data', 'asc')))
+        ]);
+        dadosF1 = snapF1.docs.map(d => ({ id: d.id, ...d.data() }));
+        dadosF2 = snapF2.docs.map(d => ({ id: d.id, ...d.data() }));
+    } catch (e) { alert("Erro ao carregar dados do Firebase: " + e.message); }
+}
+
+// ── MUDAR FAZENDA ─────────────────────────────────────────────
+window.mudarFazenda = (f) => {
+    currentFarm = f;
+    document.getElementById('btnFarm1').classList.toggle('active', f === 'fazenda1');
+    document.getElementById('btnFarm2').classList.toggle('active', f === 'fazenda2');
+    ocultarAlerta();
+    atualizarUI();
+};
+
+// ── VALIDAÇÃO DATA DUPLICADA ──────────────────────────────────
+function ocultarAlerta() {
+    document.getElementById('alertaDuplicado').classList.remove('show');
+}
+
+function checarDuplicado(data) {
+    const dados = currentFarm === 'fazenda1' ? dadosF1 : dadosF2;
+    return dados.find(r => r.data === data) || null;
+}
+
+document.getElementById('dataChuva').addEventListener('change', ocultarAlerta);
+document.getElementById('valorChuva').addEventListener('input', ocultarAlerta);
+
+// ── LANÇAR ────────────────────────────────────────────────────
+window.lancar = async function() {
+    const dataInput = document.getElementById('dataChuva').value;
+    const valor     = parseFloat(document.getElementById('valorChuva').value);
+    if (!dataInput || isNaN(valor) || valor < 0) return alert("Preencha data e valor válidos.");
+
+    ocultarAlerta();
+
+    // Verifica duplicata
+    const existente = checarDuplicado(dataInput);
+    if (existente) {
+        const dataFmt = dataInput.split('-').reverse().join('/');
+        document.getElementById('alertaDescData').textContent    = `Registro de ${dataFmt} já existe no sistema.`;
+        document.getElementById('alertaValorExistente').textContent = `Valor registrado: ${existente.valor.toFixed(1)} mm`;
+        document.getElementById('alertaDuplicado').dataset.idExistente  = existente.id;
+        document.getElementById('alertaDuplicado').dataset.dataInput    = dataInput;
+        document.getElementById('alertaDuplicado').dataset.valor        = valor;
+        document.getElementById('alertaDuplicado').classList.add('show');
+        return;
+    }
+
+    await salvarRegistro(dataInput, valor);
+};
+
+async function salvarRegistro(dataInput, valor) {
+    const btn = document.getElementById('btnLancar');
+    btn.textContent = "SALVANDO...";
+    btn.disabled    = true;
+    const col      = currentFarm === 'fazenda1' ? COL_F1 : COL_F2;
+    const nomeAtual = getNomes()[currentFarm];
+    try {
+        const novoDoc = await addDoc(collection(db, col), {
+            data: dataInput, valor, fazenda: nomeAtual,
+            criadoEm: new Date().toISOString()
+        });
+        // Atualiza cache local
+        const novo = { id: novoDoc.id, data: dataInput, valor, fazenda: nomeAtual };
+        if (currentFarm === 'fazenda1') dadosF1.push(novo);
+        else dadosF2.push(novo);
+
+        document.getElementById('valorChuva').value = '';
+        ocultarAlerta();
+        atualizarUI();
+    } catch (e) { alert("Erro ao salvar: " + e.message); }
+    btn.textContent = "SALVAR NO GOOGLE";
+    btn.disabled    = false;
+}
+
+// ── SUBSTITUIR REGISTRO DUPLICADO ────────────────────────────
+window.substituir = async function() {
+    const alerta    = document.getElementById('alertaDuplicado');
+    const idAntigo  = alerta.dataset.idExistente;
+    const dataInput = alerta.dataset.dataInput;
+    const valor     = parseFloat(alerta.dataset.valor);
+    const col       = currentFarm === 'fazenda1' ? COL_F1 : COL_F2;
+    const dataFmt   = dataInput.split('-').reverse().join('/');
+
+    if (!confirm(`Substituir o registro de ${dataFmt}?\nIsso afeta todos os usuários.`)) return;
+
+    try {
+        await deleteDoc(doc(db, col, idAntigo));
+        // Remove do cache
+        if (currentFarm === 'fazenda1') dadosF1 = dadosF1.filter(r => r.id !== idAntigo);
+        else dadosF2 = dadosF2.filter(r => r.id !== idAntigo);
+
+        await salvarRegistro(dataInput, valor);
+    } catch (e) { alert("Erro ao substituir: " + e.message); }
+};
+
+// ── RENDERIZAR GRÁFICOS / UI ──────────────────────────────────
+window.atualizarUI = function() {
+    const nomes  = getNomes();
+    const anoSel = parseInt(document.getElementById('anoSelect').value) || new Date().getFullYear();
+    const hoje   = new Date();
+    const mAtual = hoje.getMonth(), aAtual = hoje.getFullYear();
+    const diasNoMes   = new Date(aAtual, mAtual + 1, 0).getDate();
+    const labelsDias  = Array.from({length: diasNoMes}, (_, i) => i + 1);
+    const valoresDias = Array(diasNoMes).fill(0);
+    const dadosAtuais = currentFarm === 'fazenda1' ? dadosF1 : dadosF2;
+
+    let totalM = 0, picoM = 0;
+    dadosAtuais.forEach(d => {
+        const p = d.data.split('-');
+        if (parseInt(p[0]) === aAtual && (parseInt(p[1])-1) === mAtual) {
+            valoresDias[parseInt(p[2])-1] += d.valor;
+            totalM += d.valor;
+            if (d.valor > picoM) picoM = d.valor;
+        }
+    });
+
+    document.getElementById('totalMes').innerText = totalM.toFixed(1) + ' mm';
+    document.getElementById('picoMes').innerText  = picoM.toFixed(1) + ' mm';
+    renderChart('chartDiario','bar', labelsDias, [{label:'mm', data:valoresDias, backgroundColor:'#66bb6a'}]);
+
+    const pAnual = (lista) => {
+        const m = Array(12).fill(0); let totalAno = 0;
+        lista.forEach(d => {
+            const p = d.data.split('-');
+            if (parseInt(p[0]) === anoSel) { m[parseInt(p[1])-1] += d.valor; totalAno += d.valor; }
+        });
+        return { m, totalAno };
+    };
+
+    const resF1 = pAnual(dadosF1), resF2 = pAnual(dadosF2);
+    renderChart('chartMensal','bar', mesesAbr, [{label:'Total mm', data: currentFarm==='fazenda1' ? resF1.m : resF2.m, backgroundColor:'#2e7d32'}]);
+    renderChart('chartComp','line', mesesAbr, [
+        {label:`${nomes.fazenda1}: ${resF1.totalAno.toFixed(0)}mm`, data:resF1.m, borderColor:'#66bb6a', backgroundColor:'#66bb6a33', tension:0.3, fill:true},
+        {label:`${nomes.fazenda2}: ${resF2.totalAno.toFixed(0)}mm`, data:resF2.m, borderColor:'#b3e4ff', backgroundColor:'#b3e4ff33', tension:0.3, fill:true}
+    ]);
+};
+
+function renderChart(id, type, labels, datasets) {
+    if (charts[id]) charts[id].destroy();
+    charts[id] = new Chart(document.getElementById(id).getContext('2d'), {
+        type, data: { labels, datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { display: id === 'chartComp', labels: { color:'#fff'} },
+                datalabels: { anchor:'end', align:'top', color:'#fff', font:{size:10}, formatter: v => v > 0 ? v.toFixed(0) : '' }
+            },
+            scales: { y:{ticks:{color:'#888'}, grid:{color:'#1a331a'}}, x:{ticks:{color:'#888'}, grid:{display:false}} }
+        }
+    });
+}
+
+function povoarAnos() {
+    const s = document.getElementById('anoSelect'), ano = new Date().getFullYear();
+    for (let i = ano; i >= ano - 4; i--) {
+        const o = document.createElement('option'); o.value = i; o.text = 'Dados de ' + i; s.appendChild(o);
+    }
+}
+
+// ── EXPORTAR JSON ─────────────────────────────────────────────
+window.exportarDados = function() {
+    const nomes = getNomes();
+    const blob  = new Blob([JSON.stringify({ fazenda1: dadosF1, fazenda2: dadosF2, nomes }, null, 2)], { type:'application/json' });
+    const a     = document.createElement('a');
+    a.href      = URL.createObjectURL(blob);
+    a.download  = `backup_pluviometro_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+};
+
+// ── LIMPAR TUDO ───────────────────────────────────────────────
+window.limparTudo = async function() {
+    const col = currentFarm === 'fazenda1' ? COL_F1 : COL_F2;
+    const nome = getNomes()[currentFarm];
+    if (!confirm(`Apagar TODOS os registros de "${nome}" no Firebase?\nEssa ação afeta todos os usuários.`)) return;
+    try {
+        const dados = currentFarm === 'fazenda1' ? dadosF1 : dadosF2;
+        await Promise.all(dados.map(r => deleteDoc(doc(db, col, r.id))));
+        if (currentFarm === 'fazenda1') dadosF1 = []; else dadosF2 = [];
+        atualizarUI();
+        alert("Registros apagados.");
+    } catch (e) { alert("Erro ao limpar: " + e.message); }
+};
+
+// ── EXPORTAR PDF ──────────────────────────────────────────────
+window.exportarPDF = function() {
+    const { jsPDF } = window.jspdf;
+    const pdfDoc    = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+    const nomes     = getNomes();
+    const ano       = parseInt(document.getElementById('anoSelect').value) || new Date().getFullYear();
+    const pW = 210, mL = 15, mR = 15, cW = pW - mL - mR;
+
+    pdfDoc.setFillColor(14, 42, 14);
+    pdfDoc.rect(0, 0, pW, 38, 'F');
+    pdfDoc.setFontSize(18); pdfDoc.setTextColor(102,187,106); pdfDoc.setFont('helvetica','bold');
+    pdfDoc.text('PLUVIÔMETRO AGRÍCOLA', pW/2, 14, {align:'center'});
+    pdfDoc.setFontSize(11); pdfDoc.setTextColor(255,255,255);
+    pdfDoc.text(`${nomes.fazenda1}  ×  ${nomes.fazenda2}`, pW/2, 24, {align:'center'});
+    pdfDoc.setFontSize(9); pdfDoc.setTextColor(150,200,150);
+    pdfDoc.text(`Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} — Ano ${ano}`, pW/2, 32, {align:'center'});
+
+    let y = 46;
+    [[dadosF1, nomes.fazenda1], [dadosF2, nomes.fazenda2]].forEach(([dados, nome]) => {
+        pdfDoc.setFontSize(11); pdfDoc.setTextColor(46,125,50); pdfDoc.setFont('helvetica','bold');
+        pdfDoc.text(nome.toUpperCase(), mL, y); y += 6;
+        pdfDoc.setFillColor(46,125,50); pdfDoc.rect(mL, y, cW, 8, 'F');
+        pdfDoc.setTextColor(255,255,255); pdfDoc.setFontSize(9);
+        pdfDoc.text('Data', mL+3, y+5.5); pdfDoc.text('Chuva (mm)', mL+50, y+5.5); y += 8;
+        pdfDoc.setFont('helvetica','normal');
+        dados.filter(r => r.data.startsWith(ano)).forEach((r, idx) => {
+            if (y > 275) { pdfDoc.addPage(); y = 20; }
+            if (idx%2===0) { pdfDoc.setFillColor(21,42,21); pdfDoc.rect(mL, y, cW, 7,'F'); }
+            pdfDoc.setTextColor(220,220,220); pdfDoc.setFontSize(9);
+            pdfDoc.text(r.data.split('-').reverse().join('/'), mL+3, y+5);
+            pdfDoc.text(r.valor.toFixed(1), mL+55, y+5);
+            y += 7;
+        });
+        y += 10;
+    });
+
+    pdfDoc.save(`pluviometro_${ano}.pdf`);
+};
+</script>
+</body>
+</html>
